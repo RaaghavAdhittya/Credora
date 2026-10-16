@@ -11,6 +11,9 @@ import {
   computeCredentialHash,
   computeCredentialIdHash,
   generateCredentialId,
+  validateApaarId,
+  computeProtectedApaarReference,
+  SUPPORTED_RECORD_TYPES,
 } from '../utils/hash.js';
 
 /**
@@ -23,8 +26,17 @@ export async function registerCredential(req, res) {
       studentIdentifier,
       student_identifier,
       studentId,
+      apaarId,
+      apaar_id,
       institutionId,
       institution_id,
+      recordType,
+      record_type,
+      title,
+      academicYear,
+      academic_year,
+      documentHash,
+      document_hash,
       issueDate,
       issue_date,
       credentialData,
@@ -32,7 +44,35 @@ export async function registerCredential(req, res) {
       payload,
     } = req.body;
 
-    const studentRef = studentIdentifier || student_identifier || studentId;
+    const rawApaar = apaarId || apaar_id;
+    let studentRef = studentIdentifier || student_identifier || studentId;
+
+    // Handle APAAR ID if explicitly provided or passed as studentIdentifier
+    if (rawApaar !== undefined && rawApaar !== null) {
+      if (!validateApaarId(rawApaar)) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Invalid APAAR ID: must be exactly 12 numeric digits.',
+        });
+      }
+      studentRef = computeProtectedApaarReference(rawApaar);
+
+      // Register protected identity reference in student_profiles
+      await pool.query(
+        'INSERT IGNORE INTO student_profiles (apaar_reference) VALUES (?)',
+        [studentRef]
+      );
+    } else if (studentRef && /^\d{12}$/.test(String(studentRef).trim())) {
+      // If studentIdentifier is formatted as 12-digit APAAR ID, automatically protect it
+      const originalDigits = String(studentRef).trim();
+      studentRef = computeProtectedApaarReference(originalDigits);
+
+      await pool.query(
+        'INSERT IGNORE INTO student_profiles (apaar_reference) VALUES (?)',
+        [studentRef]
+      );
+    }
+
     const instId = institutionId || institution_id;
     const docData = credentialData || data || payload || {};
     const issuedOn = issueDate || issue_date || new Date().toISOString().split('T')[0];
@@ -40,7 +80,7 @@ export async function registerCredential(req, res) {
     if (!studentRef || typeof studentRef !== 'string' || !studentRef.trim()) {
       return res.status(400).json({
         status: 'error',
-        message: 'Valid student/reference identifier is required.',
+        message: 'Valid student/reference identifier or 12-digit APAAR ID is required.',
       });
     }
 
@@ -48,6 +88,26 @@ export async function registerCredential(req, res) {
       return res.status(400).json({
         status: 'error',
         message: 'Valid institution identifier is required.',
+      });
+    }
+
+    // Validate record_type if provided; default to UG_DEGREE for full backward compatibility
+    let recType = (recordType || record_type || 'UG_DEGREE').toUpperCase().trim();
+    if (!SUPPORTED_RECORD_TYPES.includes(recType)) {
+      return res.status(400).json({
+        status: 'error',
+        message: `Unsupported record_type '${recType}'. Supported types: ${SUPPORTED_RECORD_TYPES.join(', ')}`,
+      });
+    }
+
+    const recordTitle = (title || '').trim() || null;
+    const acadYear = (academicYear || academic_year || '').trim() || null;
+    const docHash = (documentHash || document_hash || '').trim() || null;
+
+    if (docHash && !/^0x[0-9a-fA-F]{64}$/.test(docHash)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid document_hash format: must be a 0x-prefixed 64-character hex hash.',
       });
     }
 
@@ -71,6 +131,10 @@ export async function registerCredential(req, res) {
     const fullPayload = {
       studentIdentifier: studentRef.trim(),
       institutionId: instId.trim(),
+      recordType: recType,
+      title: recordTitle,
+      academicYear: acadYear,
+      documentHash: docHash,
       issueDate: issuedOn,
       ...docData,
     };
@@ -83,18 +147,26 @@ export async function registerCredential(req, res) {
       `INSERT INTO credentials (
         credential_id,
         student_identifier,
+        record_type,
+        title,
         institution_id,
         credential_hash,
+        document_hash,
         status,
         issue_date,
+        academic_year,
         payload_json
-      ) VALUES (?, ?, ?, ?, 'PENDING', ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?)`,
       [
         credentialId,
         studentRef.trim(),
+        recType,
+        recordTitle,
         instId.trim(),
         credentialHash,
+        docHash,
         issuedOn,
+        acadYear,
         JSON.stringify(canonicalPayload),
       ]
     );
@@ -138,10 +210,14 @@ export async function registerCredential(req, res) {
       data: {
         credentialId,
         studentIdentifier: studentRef.trim(),
+        recordType: recType,
+        title: recordTitle,
         institutionId: instId.trim(),
         credentialHash,
+        documentHash: docHash,
         status: 'ISSUED',
         issueDate: issuedOn,
+        academicYear: acadYear,
         transactionHash: onChainReceipt.transactionHash,
         blockchain: {
           network: 'sepolia',
@@ -176,10 +252,14 @@ export async function getCredentialById(req, res) {
       `SELECT
         credential_id,
         student_identifier,
+        record_type,
+        title,
         institution_id,
         credential_hash,
+        document_hash,
         status,
         issue_date,
+        academic_year,
         transaction_hash,
         created_at,
         updated_at
@@ -229,10 +309,14 @@ export async function verifyCredential(req, res) {
       `SELECT
         credential_id,
         student_identifier,
+        record_type,
+        title,
         institution_id,
         credential_hash,
+        document_hash,
         status,
         issue_date,
+        academic_year,
         transaction_hash,
         payload_json
       FROM credentials
@@ -322,11 +406,15 @@ export async function verifyCredential(req, res) {
       isValid,
       data: {
         credentialId: credential.credential_id,
+        recordType: credential.record_type,
+        title: credential.title,
         institutionId: credential.institution_id,
         issueDate: credential.issue_date,
+        academicYear: credential.academic_year,
         dbStatus: credential.status,
         hashMatch: hashesMatch,
         computedHash,
+        documentHash: credential.document_hash,
         blockchain: {
           valid: onChain.valid,
           onChainHash: onChain.credentialHash,
@@ -421,6 +509,123 @@ export async function revokeCredential(req, res) {
     return res.status(500).json({
       status: 'error',
       message: 'Revocation processing failed: ' + sanitizeError(error.message),
+    });
+  }
+}
+
+/**
+ * Retrieve lifelong academic timeline for a student by 12-digit APAAR ID or protected identity reference.
+ * GET /api/students/:apaarId/timeline
+ */
+export async function getStudentTimeline(req, res) {
+  try {
+    const rawParam = (req.params.apaarId || '').trim();
+
+    if (!rawParam) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'APAAR ID parameter is required.',
+      });
+    }
+
+    let protectedRef;
+
+    // Check if input is a 12-digit numeric APAAR ID
+    if (/^\d{12}$/.test(rawParam)) {
+      protectedRef = computeProtectedApaarReference(rawParam);
+    } else if (/^0x[0-9a-fA-F]{64}$/.test(rawParam)) {
+      // Direct protected reference hash
+      protectedRef = rawParam.toLowerCase();
+    } else if (/^\d+$/.test(rawParam)) {
+      // Numeric but not 12 digits
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid APAAR ID: must be exactly 12 numeric digits.',
+      });
+    } else {
+      // Fallback for general student identifiers (e.g. DEMO-STUDENT-001)
+      protectedRef = rawParam;
+    }
+
+    const [rows] = await pool.query(
+      `SELECT
+        credential_id,
+        student_identifier,
+        record_type,
+        title,
+        institution_id,
+        credential_hash,
+        document_hash,
+        status,
+        issue_date,
+        academic_year,
+        transaction_hash,
+        payload_json,
+        created_at
+      FROM credentials
+      WHERE student_identifier = ?
+      ORDER BY issue_date ASC, created_at ASC`,
+      [protectedRef]
+    );
+
+    // Extract unique institutions attended
+    const institutionsSet = new Set();
+    const institutionsCount = {};
+
+    rows.forEach((r) => {
+      if (r.institution_id) {
+        institutionsSet.add(r.institution_id);
+        institutionsCount[r.institution_id] = (institutionsCount[r.institution_id] || 0) + 1;
+      }
+    });
+
+    const institutionsAttended = Array.from(institutionsSet).map((instId) => ({
+      institutionId: instId,
+      credentialsCount: institutionsCount[instId],
+    }));
+
+    const timeline = rows.map((r) => {
+      let parsedPayload = null;
+      if (r.payload_json) {
+        try {
+          parsedPayload =
+            typeof r.payload_json === 'string'
+              ? JSON.parse(r.payload_json)
+              : r.payload_json;
+        } catch {
+          parsedPayload = null;
+        }
+      }
+
+      return {
+        credentialId: r.credential_id,
+        recordType: r.record_type,
+        title: r.title,
+        institutionId: r.institution_id,
+        status: r.status,
+        issueDate: r.issue_date,
+        academicYear: r.academic_year,
+        credentialHash: r.credential_hash,
+        documentHash: r.document_hash,
+        transactionHash: r.transaction_hash,
+        payload: parsedPayload,
+        createdAt: r.created_at,
+      };
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        studentReference: protectedRef,
+        totalRecords: timeline.length,
+        institutionsAttended,
+        timeline,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to retrieve student timeline: ' + sanitizeError(error.message),
     });
   }
 }

@@ -4,6 +4,7 @@ import {
   getCredentialById,
   verifyCredential,
   revokeCredential,
+  getStudentTimeline,
 } from '../controllers/credentialController.js';
 
 const router = Router();
@@ -15,5 +16,8 @@ router.post('/credentials/:id/revoke', revokeCredential);
 
 // Public verification route
 router.get('/verify/:id', verifyCredential);
+
+// Lifelong student academic timeline linked to APAAR identity
+router.get('/students/:apaarId/timeline', getStudentTimeline);
 
 export default router;
