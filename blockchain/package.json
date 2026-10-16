@@ -5,11 +5,16 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
+    "deploy": "hardhat run scripts/deploy.js --network sepolia",
     "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "dotenv": "^16.4.7",
     "hardhat": "^2.22.17"
+  },
+  "allowScripts": {
+    "keccak@3.0.4": true,
+    "secp256k1@4.0.5": true
   }
 }
