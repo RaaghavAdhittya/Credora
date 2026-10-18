@@ -1,22 +1,81 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import Navbar from './components/Navbar';
+import Hero from './components/Hero';
+import StudentPassportPortal from './components/StudentPassportPortal';
+import InstitutionPortal from './components/InstitutionPortal';
+import VerifyPortal from './components/VerifyPortal';
+import BlockchainExplorer from './components/BlockchainExplorer';
+import Footer from './components/Footer';
+import { checkBackendHealth } from './services/api';
 
 function App() {
+  const [activeRole, setActiveRole] = useState('student'); // 'student' | 'institution' | 'verifier' | 'blockchain'
+  const [backendStatus, setBackendStatus] = useState('checking');
+  const [prefilledVerifyId, setPrefilledVerifyId] = useState('');
+
+  useEffect(() => {
+    async function checkHealth() {
+      const res = await checkBackendHealth();
+      setBackendStatus(res.status === 'ok' ? 'online' : 'offline');
+    }
+    checkHealth();
+
+    // Check for QR verification link or direct credential ID parameter
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlCredentialId = params.get('verify') || params.get('id');
+      if (urlCredentialId && urlCredentialId.trim()) {
+        setPrefilledVerifyId(urlCredentialId.trim());
+        setActiveRole('verifier');
+      }
+    } catch {
+      // Ignore URL parsing issues
+    }
+  }, []);
+
+  const handleVerifyCredential = (credentialId) => {
+    setPrefilledVerifyId(credentialId);
+    setActiveRole('verifier');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-6 text-center">
-      <div className="max-w-2xl rounded-2xl border border-slate-800 bg-slate-900/60 p-8 shadow-xl backdrop-blur-md">
-        <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-          APAAR Blockchain Verifier
-        </h1>
-        <p className="mt-4 text-base text-slate-400">
-          Privacy-preserving blockchain-based verification system for APAAR-linked academic credentials.
-        </p>
-        <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-sm font-medium text-emerald-400">
-          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          Repository Initialized
+    <div className="min-h-screen flex flex-col bg-[#080B12] text-slate-100 selection:bg-amber-500/20 selection:text-amber-200">
+      <Navbar
+        activeRole={activeRole}
+        setActiveRole={(role) => {
+          setActiveRole(role);
+          if (role !== 'verifier') {
+            setPrefilledVerifyId('');
+          }
+        }}
+        backendStatus={backendStatus}
+      />
+
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
+        <Hero activeRole={activeRole} setActiveRole={setActiveRole} />
+
+        <div className="mt-2">
+          {activeRole === 'student' && (
+            <StudentPassportPortal onVerifyCredential={handleVerifyCredential} />
+          )}
+          {activeRole === 'institution' && (
+            <InstitutionPortal onVerifyNewlyIssued={handleVerifyCredential} />
+          )}
+          {activeRole === 'verifier' && (
+            <VerifyPortal initialCredentialId={prefilledVerifyId} />
+          )}
+          {activeRole === 'blockchain' && (
+            <BlockchainExplorer onVerifyCredential={handleVerifyCredential} />
+          )}
         </div>
-      </div>
+      </main>
+
+      <Footer />
     </div>
   );
 }
 
 export default App;
+
+

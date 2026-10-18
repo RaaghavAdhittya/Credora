@@ -5,6 +5,7 @@ import {
   revokeCredentialOnChain,
   verifyCredentialOnChain,
   sanitizeError,
+  provider,
 } from '../config/blockchain.js';
 import {
   canonicalizeCredential,
@@ -629,3 +630,71 @@ export async function getStudentTimeline(req, res) {
     });
   }
 }
+
+/**
+ * Read-only endpoint to retrieve on-chain Credora transactions recorded on Ethereum Sepolia.
+ * GET /api/blockchain/transactions
+ */
+export async function getBlockchainTransactions(req, res) {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 100);
+    const [rows] = await pool.query(
+      `SELECT
+        credential_id,
+        record_type,
+        title,
+        institution_id,
+        status,
+        transaction_hash,
+        created_at,
+        updated_at
+      FROM credentials
+      WHERE transaction_hash IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT ?`,
+      [limit]
+    );
+
+    const transactions = await Promise.all(
+      rows.map(async (r) => {
+        let blockNumber = null;
+        if (provider && r.transaction_hash) {
+          try {
+            const receipt = await provider.getTransactionReceipt(r.transaction_hash);
+            blockNumber = receipt?.blockNumber || null;
+          } catch {
+            blockNumber = null;
+          }
+        }
+        return {
+          credentialId: r.credential_id,
+          recordType: r.record_type,
+          title: r.title,
+          institutionId: r.institution_id,
+          action: r.status === 'REVOKED' ? 'REVOKED' : 'ISSUED',
+          status: r.status,
+          transactionHash: r.transaction_hash,
+          blockNumber,
+          timestamp: r.created_at,
+        };
+      })
+    );
+
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        network: 'Ethereum Sepolia Testnet',
+        chainId: 11155111,
+        contractAddress: getContractAddress(),
+        total: transactions.length,
+        transactions,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to retrieve blockchain transactions: ' + sanitizeError(error.message),
+    });
+  }
+}
+

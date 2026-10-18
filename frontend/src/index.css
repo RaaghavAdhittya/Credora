@@ -5,3 +5,101 @@
 :root {
   color-scheme: dark;
 }
+
+body {
+  background-color: #080B12;
+  color: #F8FAFC;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  background-image: 
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(245, 158, 11, 0.05), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 90% 90%, rgba(30, 41, 59, 0.25), transparent 60%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* Glassmorphism & Surface Design System */
+.glass-panel {
+  background: rgba(17, 21, 31, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid #252B38;
+  border-radius: 0.625rem; /* 10px */
+}
+
+.glass-panel-elevated {
+  background: rgba(23, 29, 43, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid #2A3242;
+  border-radius: 0.625rem;
+}
+
+.glass-input {
+  background: rgba(10, 13, 20, 0.8);
+  border: 1px solid #252B38;
+  border-radius: 0.5rem;
+  color: #F8FAFC;
+  transition: all 0.15s ease-in-out;
+}
+
+.glass-input:focus {
+  outline: none;
+  border-color: #F59E0B;
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.3), 0 0 12px rgba(245, 158, 11, 0.12);
+}
+
+/* Gold Accents & Highlights */
+.border-gold-subtle {
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.glow-gold-subtle {
+  box-shadow: 0 0 20px -3px rgba(245, 158, 11, 0.15);
+}
+
+.btn-gold-primary {
+  background: linear-gradient(135deg, #F59E0B 0%, #D4A72C 100%);
+  color: #080B12;
+  font-weight: 600;
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-gold-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #FBBF24 0%, #F59E0B 100%);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.35);
+  transform: translateY(-0.5px);
+}
+
+.btn-secondary-surface {
+  background: rgba(23, 29, 43, 0.7);
+  border: 1px solid #252B38;
+  color: #F8FAFC;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-secondary-surface:hover:not(:disabled) {
+  background: rgba(30, 38, 56, 0.9);
+  border-color: #384256;
+  color: #FFFFFF;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #080B12;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #252B38;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3E485D;
+}
+

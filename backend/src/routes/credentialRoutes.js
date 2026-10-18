@@ -5,6 +5,7 @@ import {
   verifyCredential,
   revokeCredential,
   getStudentTimeline,
+  getBlockchainTransactions,
 } from '../controllers/credentialController.js';
 
 const router = Router();
@@ -20,4 +21,8 @@ router.get('/verify/:id', verifyCredential);
 // Lifelong student academic timeline linked to APAAR identity
 router.get('/students/:apaarId/timeline', getStudentTimeline);
 
+// Read-only on-chain blockchain explorer
+router.get('/blockchain/transactions', getBlockchainTransactions);
+
 export default router;
+
