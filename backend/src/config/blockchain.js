@@ -45,7 +45,22 @@ export function sanitizeError(error) {
   return msg;
 }
 
-// Load deployment JSON and Contract ABI
+// Embedded ABI fallback so production does not depend on local Hardhat build artifacts
+const EMBEDDED_ABI = [
+  'function registerCredential(bytes32 credentialIdHash, bytes32 credentialHash, string calldata institutionId) external',
+  'function revokeCredential(bytes32 credentialIdHash) external',
+  'function verifyCredential(bytes32 credentialIdHash) external view returns (bool valid, bytes32 credentialHash, string memory institutionId, uint256 issuedAt)',
+  'event CredentialRegistered(bytes32 indexed credentialIdHash, bytes32 indexed credentialHash, string institutionId, uint256 issuedAt)',
+  'event CredentialRevoked(bytes32 indexed credentialIdHash, uint256 revokedAt)',
+  'error CredentialAlreadyExists(bytes32 credentialIdHash)',
+  'error CredentialNotFound(bytes32 credentialIdHash)',
+  'error CredentialAlreadyRevoked(bytes32 credentialIdHash)',
+  'error InvalidCredentialIdHash()',
+  'error InvalidCredentialHash()',
+  'error EmptyInstitutionId()'
+];
+
+// Load deployment JSON and Contract ABI (with embedded fallback)
 const deploymentPath = path.resolve(__dirname, '../../../blockchain/deployment/sepolia.json');
 const artifactPath = path.resolve(
   __dirname,
@@ -53,18 +68,32 @@ const artifactPath = path.resolve(
 );
 
 let deployment = null;
-let contractAbi = null;
+let contractAbi = EMBEDDED_ABI;
 
 if (fs.existsSync(deploymentPath)) {
-  deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
+  try {
+    deployment = JSON.parse(fs.readFileSync(deploymentPath, 'utf8'));
+  } catch (err) {
+    console.warn('[Blockchain] Could not parse deployment file:', sanitizeError(err.message));
+  }
 }
 
 if (fs.existsSync(artifactPath)) {
-  const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
-  contractAbi = artifact.abi;
+  try {
+    const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
+    if (artifact && artifact.abi) {
+      contractAbi = artifact.abi;
+    }
+  } catch (err) {
+    console.warn('[Blockchain] Could not parse artifact file, using embedded ABI:', sanitizeError(err.message));
+  }
 }
 
-const contractAddress = deployment ? deployment.contractAddress : '';
+const contractAddress = (
+  process.env.CONTRACT_ADDRESS ||
+  (deployment ? deployment.contractAddress : '') ||
+  ''
+).trim();
 
 // Provider & Wallet setup
 let provider = null;
