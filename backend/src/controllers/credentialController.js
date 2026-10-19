@@ -183,7 +183,7 @@ export async function registerCredential(req, res) {
     } catch (blockchainErr) {
       // Mark as FAILED in DB if on-chain registration failed
       await pool.query(
-        'UPDATE credentials SET status = "FAILED" WHERE credential_id = ?',
+        "UPDATE credentials SET status = 'FAILED' WHERE credential_id = ?",
         [credentialId]
       );
 
@@ -202,7 +202,7 @@ export async function registerCredential(req, res) {
 
     // Update with mined transaction hash and ISSUED status
     await pool.query(
-      'UPDATE credentials SET status = "ISSUED", transaction_hash = ? WHERE credential_id = ?',
+      "UPDATE credentials SET status = 'ISSUED', transaction_hash = ? WHERE credential_id = ?",
       [onChainReceipt.transactionHash, credentialId]
     );
 
@@ -329,7 +329,7 @@ export async function verifyCredential(req, res) {
     if (!rows || rows.length === 0) {
       // Record failed verification attempt
       await pool.query(
-        'INSERT INTO verifications (credential_id, verification_result, blockchain_verified, verifier_ip, notes) VALUES (?, "NOT_FOUND", false, ?, "Credential ID not found in database")',
+        "INSERT INTO verifications (credential_id, verification_result, blockchain_verified, verifier_ip, notes) VALUES (?, 'NOT_FOUND', false, ?, 'Credential ID not found in database')",
         [credentialId, verifierIp]
       );
 
@@ -360,7 +360,7 @@ export async function verifyCredential(req, res) {
       onChain = await verifyCredentialOnChain(credentialIdHash);
     } catch (bcError) {
       await pool.query(
-        'INSERT INTO verifications (credential_id, verification_result, blockchain_verified, verifier_ip, notes) VALUES (?, "BLOCKCHAIN_ERROR", false, ?, ?)',
+        "INSERT INTO verifications (credential_id, verification_result, blockchain_verified, verifier_ip, notes) VALUES (?, 'BLOCKCHAIN_ERROR', false, ?, ?)",
         [credentialId, verifierIp, sanitizeError(bcError.message)]
       );
 
@@ -492,7 +492,7 @@ export async function revokeCredential(req, res) {
 
     // Update database status
     await pool.query(
-      'UPDATE credentials SET status = "REVOKED" WHERE credential_id = ?',
+      "UPDATE credentials SET status = 'REVOKED' WHERE credential_id = ?",
       [credentialId]
     );
 
